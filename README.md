@@ -81,12 +81,15 @@ works offline. To enable live LLM extraction and drafting, set the key in `.env`
 
 ```
 RUNWARE_API_KEY=...
-RUNWARE_MODEL=google:gemini@3-5-flash   # optional override; provider:model@variant
+RUNWARE_MODEL=google-gemini-3-5-flash   # optional override; hyphenated model id
 ```
 
-`RUNWARE_MODEL` defaults to a cheap, fast, vision/PDF-capable chat model. Pick any
-slug from Runware's [LLM list](https://runware.ai/llm-api). Never commit the key —
-store it in the secrets manager.
+`RUNWARE_MODEL` defaults to a cheap, fast, vision/PDF-capable chat model. Runware's
+OpenAI-compatible endpoint uses **fully-hyphenated** ids of the form
+`provider-model-version` (e.g. `google-gemini-3-5-flash`) — not a
+`provider:model@variant` form. List the exact accepted ids with
+`curl https://api.runware.ai/v1/models -H "authorization: Bearer $KEY"`. Never
+commit the key — store it in the secrets manager.
 
 **PDF letters.** Uploaded PDFs are handled server-side: text-based PDFs have their
 text extracted and sent as text (no vision cost); scanned/image-only PDFs fall
