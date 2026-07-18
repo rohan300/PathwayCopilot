@@ -81,15 +81,21 @@ works offline. To enable live LLM extraction and drafting, set the key in `.env`
 
 ```
 RUNWARE_API_KEY=...
-RUNWARE_MODEL=google-gemini-3-5-flash   # optional override; hyphenated model id
+RUNWARE_MODEL=openai-gpt-5-4-mini   # optional override; hyphenated model id
 ```
 
-`RUNWARE_MODEL` defaults to a cheap, fast, vision/PDF-capable chat model. Runware's
+`RUNWARE_MODEL` defaults to a cheap, fast, JSON-friendly chat model. Runware's
 OpenAI-compatible endpoint uses **fully-hyphenated** ids of the form
-`provider-model-version` (e.g. `google-gemini-3-5-flash`) — not a
+`provider-model-version` (e.g. `openai-gpt-5-4-mini`) — not a
 `provider:model@variant` form. List the exact accepted ids with
-`curl https://api.runware.ai/v1/models -H "authorization: Bearer $KEY"`. Never
-commit the key — store it in the secrets manager.
+`curl https://api.runware.ai/v1/models -H "authorization: Bearer $KEY"`.
+
+> **Note:** Gemini models are not compatible with our `response_format:
+> {type:'json_object'}` on Runware (they 400 with "Missing required parameter:
+> jsonSchema"), so choose an OpenAI model. Also, `gpt-5` models reject
+> `max_tokens` in favour of `max_completion_tokens` — the app sends neither.
+
+Never commit the key — store it in the secrets manager.
 
 **PDF letters.** Uploaded PDFs are handled server-side: text-based PDFs have their
 text extracted and sent as text (no vision cost); scanned/image-only PDFs fall

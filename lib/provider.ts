@@ -32,16 +32,21 @@ export const hasLLMKey: boolean = Boolean(apiKey);
 /**
  * The model used for extraction and drafting. Override with RUNWARE_MODEL.
  *
- * Default: Gemini 3.5 Flash via Runware — cheap, fast, JSON-friendly, and
- * vision/document-capable (so it can read scanned PDFs). Runware's
+ * Default: GPT-5-4 Mini via Runware — cheap, fast, and JSON-friendly. Runware's
  * OpenAI-compatible endpoint uses fully-hyphenated `provider-model-version` ids
- * (e.g. `google-gemini-3-5-flash`) — NOT the `provider:model@variant` form.
- * List the exact accepted ids with `GET /v1/models`.
+ * (e.g. `openai-gpt-5-4-mini`) — NOT the `provider:model@variant` form. List the
+ * exact accepted ids with `GET /v1/models`.
+ *
+ * NOTE: Gemini models are NOT compatible with our `response_format:
+ * {type:'json_object'}` on Runware — they 400 with "Missing required parameter:
+ * jsonSchema". GPT-5 mini accepts json_object + temperature and returns valid
+ * JSON at 200, and is cheaper. Also: gpt-5 models reject `max_tokens` (they want
+ * `max_completion_tokens`) — our code sends neither, so don't add `max_tokens`.
  */
 export const LLM_MODEL: string =
   process.env.RUNWARE_MODEL?.trim() ||
   process.env.OPENAI_MODEL?.trim() ||
-  "google-gemini-3-5-flash";
+  "openai-gpt-5-4-mini";
 
 let client: OpenAI | null = null;
 
