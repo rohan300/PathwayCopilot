@@ -32,14 +32,15 @@ export const hasLLMKey: boolean = Boolean(apiKey);
 /**
  * The model used for extraction and drafting. Override with RUNWARE_MODEL.
  *
- * Default: Gemini 3.5 Flash via Runware — cheap, fast, JSON-friendly, and
+ * Default: Gemini 3.1 Flash via Runware — cheap, fast, JSON-friendly, and
  * vision/document-capable (so it can read scanned PDFs). Runware model slugs use
- * the `provider:model@variant` form; see https://runware.ai/llm-api for the list.
+ * the `creator:family@version` form and the version uses DOTS, not dashes
+ * (`3.1-flash`, not `3-5-flash`); see https://runware.ai/llm-api for the list.
  */
 export const LLM_MODEL: string =
   process.env.RUNWARE_MODEL?.trim() ||
   process.env.OPENAI_MODEL?.trim() ||
-  "google:gemini@3-5-flash";
+  "google:gemini@3.1-flash";
 
 let client: OpenAI | null = null;
 
