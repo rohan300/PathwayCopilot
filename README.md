@@ -54,7 +54,8 @@ The pipeline is built in this fixed order; each stage feeds the next:
 
 ## Tech stack
 
-Next.js (App Router) · TypeScript · Tailwind CSS · OpenAI. No database, no auth.
+Next.js (App Router) · TypeScript · Tailwind CSS · Runware (OpenAI-compatible
+LLM API). No database, no auth.
 
 ## Getting started
 
@@ -68,17 +69,32 @@ npm run dev
 
 Open http://localhost:3000.
 
-### OpenAI key (optional)
+### Runware key (optional)
 
-The app **runs end-to-end without a key.** When `OPENAI_API_KEY` is unset, the
+The two AI touchpoints — the **Extractor** (letter → JSON timeline) and the
+**Drafter** (emails / clinician summary) — run through [Runware](https://runware.ai),
+which exposes a drop-in OpenAI-compatible endpoint.
+
+The app **runs end-to-end without a key.** When `RUNWARE_API_KEY` is unset, the
 extractor and drafter fall back to deterministic mocks, so the full demo path
-works offline. To enable live LLM extraction and drafting, set the key in
-`.env`:
+works offline. To enable live LLM extraction and drafting, set the key in `.env`:
 
 ```
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4o-mini   # optional override
+RUNWARE_API_KEY=...
+RUNWARE_MODEL=google:gemini@3-5-flash   # optional override; provider:model@variant
 ```
+
+`RUNWARE_MODEL` defaults to a cheap, fast, vision/PDF-capable chat model. Pick any
+slug from Runware's [LLM list](https://runware.ai/llm-api). Never commit the key —
+store it in the secrets manager.
+
+**PDF letters.** Uploaded PDFs are handled server-side: text-based PDFs have their
+text extracted and sent as text (no vision cost); scanned/image-only PDFs fall
+back to the vision-capable model so extraction still works.
+
+**Clinical safety.** The LLM only extracts JSON and drafts prose. The clinical
+stage / urgency is decided exclusively by the deterministic state machine
+(`lib/pipeline/stateMachine.ts`) — never the model.
 
 ## Scripts
 

@@ -3,11 +3,11 @@
  * JSON. The LLM ONLY reads what the document says: absent fields are null,
  * dates are never inferred, low confidence is flagged rather than guessed.
  *
- * Without an OPENAI_API_KEY, a deterministic mock returns coherent output so
+ * Without a RUNWARE_API_KEY, a deterministic mock returns coherent output so
  * the whole app runs keyless.
  */
 
-import { getOpenAI, hasOpenAIKey, OPENAI_MODEL } from "../openai";
+import { getLLM, hasLLMKey, LLM_MODEL, parseJsonLoose } from "../provider";
 import type { DocType, Extraction, StageSignal } from "./types";
 import { SAMPLE_LETTERS } from "./samples";
 
@@ -129,10 +129,10 @@ export async function extractLetter(input: ExtractInput): Promise<Extraction> {
     if (sample) return sample.extraction;
   }
 
-  const client = getOpenAI();
+  const client = getLLM();
 
   // Mock mode: no key.
-  if (!client || !hasOpenAIKey) {
+  if (!client || !hasLLMKey) {
     if (input.text) return heuristicExtract(input.text);
     return normalize({ confidence: 0.3 });
   }
@@ -155,20 +155,23 @@ export async function extractLetter(input: ExtractInput): Promise<Extraction> {
   }
   if (userContent.length === 0) return normalize({ confidence: 0.3 });
 
-  const completion = await client.chat.completions.create({
-    model: OPENAI_MODEL,
-    temperature: 0,
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: userContent },
-    ],
-  });
-
-  const content = completion.choices[0]?.message?.content ?? "{}";
+  // Any provider/network error degrades to a safe low-confidence extraction (or
+  // the text heuristic) rather than failing the request — the demo never breaks.
   try {
-    return normalize(JSON.parse(content));
+    const completion = await client.chat.completions.create({
+      model: LLM_MODEL,
+      temperature: 0,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userContent },
+      ],
+    });
+
+    const content = completion.choices[0]?.message?.content ?? "{}";
+    return normalize(parseJsonLoose(content));
   } catch {
+    if (input.text) return heuristicExtract(input.text);
     return normalize({ confidence: 0.3 });
   }
 }
