@@ -7,10 +7,10 @@
  * NEVER makes a clinical claim — vitals are objective context only. Escalations
  * are administrative (chasing a process), not medical.
  *
- * Without an OPENAI_API_KEY, a deterministic template produces equivalent text.
+ * Without a RUNWARE_API_KEY, a deterministic template produces equivalent text.
  */
 
-import { getOpenAI, hasOpenAIKey, OPENAI_MODEL } from "../openai";
+import { getLLM, hasLLMKey, LLM_MODEL, parseJsonLoose } from "../provider";
 import type { DraftInput, DraftResult, DraftTarget, VitalsResult } from "./types";
 
 const TARGET_LABEL: Record<DraftTarget, string> = {
@@ -151,11 +151,11 @@ Voice: polite, specific, factual, and firm. Never angry, never pleading.
 - Do not invent facts beyond those provided.`;
 
 export async function draft(input: DraftInput): Promise<DraftResult> {
-  const client = getOpenAI();
+  const client = getLLM();
   const facts = factsBlock(input);
 
   // Mock mode: no key.
-  if (!client || !hasOpenAIKey) {
+  if (!client || !hasLLMKey) {
     if (input.target === "clinician_summary") {
       const { text, questions } = mockClinicianSummary(input);
       return { target: input.target, text, questions, mocked: true };
@@ -167,24 +167,25 @@ export async function draft(input: DraftInput): Promise<DraftResult> {
     };
   }
 
-  // LLM mode.
+  // LLM mode. Any provider/network error degrades to the deterministic template
+  // so the app never fails to produce a draft.
   if (input.target === "clinician_summary") {
-    const completion = await client.chat.completions.create({
-      model: OPENAI_MODEL,
-      temperature: 0.3,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: `${SYSTEM_PROMPT}\n\nReturn STRICT JSON: { "text": string (a structured one-pager summary), "questions": string[] (a short list of questions the patient should ask) }.`,
-        },
-        { role: "user", content: `Facts:\n${facts}` },
-      ],
-    });
-    const raw = completion.choices[0]?.message?.content ?? "{}";
+    const fallback = mockClinicianSummary(input);
     try {
-      const parsed = JSON.parse(raw) as { text?: string; questions?: string[] };
-      const fallback = mockClinicianSummary(input);
+      const completion = await client.chat.completions.create({
+        model: LLM_MODEL,
+        temperature: 0.3,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `${SYSTEM_PROMPT}\n\nReturn STRICT JSON: { "text": string (a structured one-pager summary), "questions": string[] (a short list of questions the patient should ask) }.`,
+          },
+          { role: "user", content: `Facts:\n${facts}` },
+        ],
+      });
+      const raw = completion.choices[0]?.message?.content ?? "{}";
+      const parsed = parseJsonLoose(raw) as { text?: string; questions?: string[] };
       return {
         target: input.target,
         text: typeof parsed.text === "string" ? parsed.text : fallback.text,
@@ -192,22 +193,25 @@ export async function draft(input: DraftInput): Promise<DraftResult> {
         mocked: false,
       };
     } catch {
-      const fallback = mockClinicianSummary(input);
       return { target: input.target, text: fallback.text, questions: fallback.questions, mocked: false };
     }
   }
 
-  const completion = await client.chat.completions.create({
-    model: OPENAI_MODEL,
-    temperature: 0.3,
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: `Target: ${TARGET_LABEL[input.target]}\n\nFacts:\n${facts}\n\nWrite the message, ready to send.`,
-      },
-    ],
-  });
-  const text = completion.choices[0]?.message?.content?.trim() || mockMessage(input, input.target);
-  return { target: input.target, text, mocked: false };
+  try {
+    const completion = await client.chat.completions.create({
+      model: LLM_MODEL,
+      temperature: 0.3,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `Target: ${TARGET_LABEL[input.target]}\n\nFacts:\n${facts}\n\nWrite the message, ready to send.`,
+        },
+      ],
+    });
+    const text = completion.choices[0]?.message?.content?.trim() || mockMessage(input, input.target);
+    return { target: input.target, text, mocked: false };
+  } catch {
+    return { target: input.target, text: mockMessage(input, input.target), mocked: false };
+  }
 }

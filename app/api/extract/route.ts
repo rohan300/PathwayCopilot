@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractLetter, type ExtractInput } from "@/lib/pipeline";
+import { extractPdfText, isPdf, looksLikeText } from "@/lib/pdf";
+
+// pdf-parse runs in the Node runtime (not edge).
+export const runtime = "nodejs";
 
 /**
  * POST /api/extract — extract one NHS letter into strict JSON.
  *
  * Accepts either:
- *  - application/json: { sampleId?, text? }
- *  - multipart/form-data: file (image), or a `text` field, or `sampleId`
+ *  - application/json: { sampleId?, text?, imageBase64? }
+ *  - multipart/form-data: file (PDF or image), or a `text` field, or `sampleId`
+ *
+ * PDFs: text-based PDFs are read server-side and passed as text (no vision cost).
+ * Scanned/image-only PDFs (little extractable text) fall back to the vision path
+ * so a vision-capable model can still read them.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -22,8 +30,21 @@ export async function POST(req: NextRequest) {
       if (typeof text === "string" && text) input.text = text;
       if (file && file instanceof File) {
         const buf = Buffer.from(await file.arrayBuffer());
-        input.imageBase64 = buf.toString("base64");
-        input.imageMime = file.type || "image/png";
+        const mime = file.type || "application/octet-stream";
+        if (isPdf(mime, file.name)) {
+          const pdfText = await extractPdfText(buf);
+          if (looksLikeText(pdfText)) {
+            // Text-based PDF: cheapest, most reliable path.
+            input.text = pdfText;
+          } else {
+            // Scanned/image PDF: hand the raw PDF to a vision-capable model.
+            input.imageBase64 = buf.toString("base64");
+            input.imageMime = "application/pdf";
+          }
+        } else {
+          input.imageBase64 = buf.toString("base64");
+          input.imageMime = mime.startsWith("image/") ? mime : "image/png";
+        }
       }
     } else {
       const body = (await req.json()) as ExtractInput;

@@ -109,6 +109,6 @@ export interface DraftResult {
   text: string;
   /** For clinician_summary only: short list of questions the patient should ask. */
   questions?: string[];
-  /** True when produced by the deterministic mock (no OPENAI_API_KEY). */
+  /** True when produced by the deterministic mock (no RUNWARE_API_KEY). */
   mocked: boolean;
 }
